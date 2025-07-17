@@ -54,4 +54,15 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Nuevo endpoint para obtener miembros (solo para líderes)
+router.get('/members', async (req, res) => {
+    try {
+        const query = 'SELECT id, nombre_usuario FROM usuarios WHERE rol = $1';
+        const { rows } = await pool.query(query, ['miembro']);
+        res.json(rows);
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener miembros', error: error.message });
+    }
+});
+
 module.exports = router;
