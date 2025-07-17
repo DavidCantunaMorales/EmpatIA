@@ -75,7 +75,7 @@ const TaskList = ({ onTaskResponded }) => {
                             <div className="mb-4">
                                 <p className="my-1 text-gray-600 text-sm"><strong>Asignado a:</strong> {task.asignado_nombre}</p>
                                 <p className="my-1 text-gray-600 text-sm"><strong>Creado por:</strong> {task.creado_por_nombre}</p>
-                                <p className="my-1 text-gray-600 text-sm"><strong>Fecha:</strong> {new Date(task.fecha_creacion).toLocaleDateString()}</p>
+                                <p className="my-1 text-gray-600 text-sm"><strong>Fecha:</strong> {new Date(task.creado_en).toLocaleDateString()}</p>
                             </div>
 
                             <div className="my-4">
