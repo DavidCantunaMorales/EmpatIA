@@ -5,8 +5,51 @@ const authMiddleware = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 const { processMessage } = require('../services/deepseek');
 
+// Nueva ruta para previsualización
+router.post('/preview', authMiddleware, roleMiddleware('lider'), async (req, res) => {
+    const { mensaje } = req.body;
+
+    try {
+        const cordialMessage = await processMessage(mensaje);
+        res.json({
+            originalMessage: mensaje,
+            cordialMessage: cordialMessage
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al generar previsualización', error: error.message });
+    }
+});
+
+// Nueva ruta para previsualización de respuestas
+router.post('/preview-response', authMiddleware, roleMiddleware('miembro'), async (req, res) => {
+    const { respuesta, taskId } = req.body;
+
+    try {
+        // Obtener la tarea original para tener el contexto
+        const taskQuery = 'SELECT mensaje, mensaje_cordial FROM tareas WHERE id = $1';
+        const taskResult = await pool.query(taskQuery, [taskId]);
+
+        if (taskResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Tarea no encontrada' });
+        }
+
+        const originalTask = taskResult.rows[0];
+        const context = {
+            mensaje_original: originalTask.mensaje_cordial || originalTask.mensaje
+        };
+
+        const cordialResponse = await processMessage(respuesta, context);
+        res.json({
+            originalResponse: respuesta,
+            cordialResponse: cordialResponse
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al generar previsualización de respuesta', error: error.message });
+    }
+});
+
 router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res) => {
-    const { nombre, asignado_a, mensaje } = req.body;
+    const { nombre, asignado_a, mensaje, mensajeOriginal, tipoMensajeSeleccionado } = req.body;
 
     try {
         // Validar que el usuario asignado existe y es miembro
@@ -16,15 +59,29 @@ router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res)
             return res.status(400).json({ message: 'Usuario asignado no válido o no es miembro' });
         }
 
-        const cordialMessage = await processMessage(mensaje);
-        const query = `INSERT INTO tareas (nombre, asignado_a, mensaje, mensaje_cordial, creado_por)
-            VALUES ($1, $2, $3, $4, $5)
+        // Si no se especifica el tipo, determinar automáticamente
+        let selectedType = tipoMensajeSeleccionado;
+        let originalMessage = mensajeOriginal || mensaje;
+        let cordialMessage = mensaje;
+
+        // Si no hay mensaje original separado, generar la versión cordial
+        if (!mensajeOriginal) {
+            cordialMessage = await processMessage(mensaje);
+            selectedType = selectedType || 'original'; // Por defecto original si no se especifica
+        } else {
+            selectedType = selectedType || 'cordial'; // Por defecto cordial si viene de previsualización
+        }
+
+        const query = `INSERT INTO tareas (nombre, asignado_a, mensaje, mensaje_cordial, mensaje_original, tipo_mensaje_seleccionado, creado_por)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *;`;
         const { rows } = await pool.query(query, [
             nombre,
             asignado_a,
-            mensaje,
+            selectedType === 'original' ? originalMessage : cordialMessage, // mensaje que se muestra
             cordialMessage,
+            originalMessage,
+            selectedType,
             req.user.id,
         ]);
         res.status(201).json(rows[0]);
@@ -35,7 +92,7 @@ router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res)
 
 router.post('/respond/:taskId', authMiddleware, roleMiddleware('miembro'), async (req, res) => {
     const { taskId } = req.params;
-    const { respuesta } = req.body;
+    const { respuesta, respuestaOriginal, tipoRespuestaSeleccionada } = req.body;
     try {
         // Primero obtenemos la tarea original para tener el contexto del mensaje de asignación
         const taskQuery = 'SELECT mensaje, mensaje_cordial FROM tareas WHERE id = $1 AND asignado_a = $2';
@@ -47,21 +104,31 @@ router.post('/respond/:taskId', authMiddleware, roleMiddleware('miembro'), async
 
         const originalTask = taskResult.rows[0];
 
-        // Pasamos el mensaje original como contexto para la evaluación de cordialidad
-        const context = {
-            mensaje_original: originalTask.mensaje_cordial || originalTask.mensaje
-        };
+        // Si no se especifica el tipo, determinar automáticamente
+        let selectedType = tipoRespuestaSeleccionada;
+        let originalResponse = respuestaOriginal || respuesta;
+        let cordialResponse = respuesta;
 
-        const cordialResponse = await processMessage(respuesta, context);
-        console.log('Cordial:', cordialResponse);
+        // Si no hay respuesta original separada, generar la versión cordial
+        if (!respuestaOriginal) {
+            const context = {
+                mensaje_original: originalTask.mensaje_cordial || originalTask.mensaje
+            };
+            cordialResponse = await processMessage(respuesta, context);
+            selectedType = selectedType || 'original'; // Por defecto original si no se especifica
+        } else {
+            selectedType = selectedType || 'cordial'; // Por defecto cordial si viene de previsualización
+        }
 
         const query = `UPDATE tareas
-            SET respuesta = $1, respuesta_cordial = $2, estado = 'completada'
-            WHERE id = $3 AND asignado_a = $4
+            SET respuesta = $1, respuesta_cordial = $2, respuesta_original = $3, tipo_respuesta_seleccionada = $4, estado = 'completada'
+            WHERE id = $5 AND asignado_a = $6
             RETURNING *;`;
         const { rows } = await pool.query(query, [
-            respuesta,
+            selectedType === 'original' ? originalResponse : cordialResponse, // respuesta que se muestra
             cordialResponse,
+            originalResponse,
+            selectedType,
             taskId,
             req.user.id,
         ]);
