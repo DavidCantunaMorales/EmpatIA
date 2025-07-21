@@ -1,10 +1,40 @@
 import React, { useState } from 'react';
 import { tasksAPI } from '../services/api';
+import api from '../services/api';
 
 const TaskResponseModal = ({ task, onClose, onSubmit }) => {
     const [respuesta, setRespuesta] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [previewMode, setPreviewMode] = useState(false);
+    const [cordialResponse, setCordialResponse] = useState('');
+    const [selectedResponseType, setSelectedResponseType] = useState('cordial');
+    const [generatingPreview, setGeneratingPreview] = useState(false);
+    const [showOriginalTask, _] = useState(false);
+
+    const generateResponsePreview = async () => {
+        if (!respuesta.trim()) {
+            setError('Por favor, escribe una respuesta antes de generar la previsualización');
+            return;
+        }
+
+        setGeneratingPreview(true);
+        setError('');
+
+        try {
+            const response = await api.post('/tasks/preview-response', {
+                respuesta: respuesta,
+                taskId: task.id
+            });
+            setCordialResponse(response.data.cordialResponse);
+            setPreviewMode(true);
+        } catch (err) {
+            setError('Error al generar la previsualización');
+            console.error('Error:', err);
+        } finally {
+            setGeneratingPreview(false);
+        }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -12,7 +42,12 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
         setError('');
 
         try {
-            await tasksAPI.respondTask(task.id, { respuesta });
+            const responseToSubmit = selectedResponseType === 'original' ? respuesta : cordialResponse || respuesta;
+            await tasksAPI.respondTask(task.id, {
+                respuesta: responseToSubmit,
+                respuestaOriginal: respuesta,
+                tipoRespuestaSeleccionada: selectedResponseType
+            });
             onSubmit();
         } catch (err) {
             setError(err.response?.data?.message || 'Error al enviar la respuesta');
@@ -36,14 +71,16 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
 
                 <div className="p-6">
                     <div className="mb-8 p-4 bg-gray-50 rounded">
-                        <h4 className="m-0 mb-2 text-gray-800 text-base font-semibold">Mensaje Original:</h4>
-                        <p className="m-0 p-3 rounded bg-gray-50 border-l-4 border-gray-500 text-sm leading-relaxed">{task.mensaje}</p>
+                        <div className="flex justify-between items-center mb-4">
+                            <h4 className="m-0 text-gray-800 text-base font-semibold">Mensaje de la Tarea:</h4>
+                        </div>
 
-                        {task.mensaje_cordial && (
-                            <>
-                                <h4 className="m-0 mb-2 mt-4 text-gray-800 text-base font-semibold">Mensaje Cordial (IA):</h4>
-                                <p className="m-0 p-3 rounded bg-blue-50 border-l-4 border-blue-500 text-sm leading-relaxed">{task.mensaje_cordial}</p>
-                            </>
+                        {showOriginalTask ? (
+                            <p className="m-0 p-3 rounded bg-gray-50 border-l-4 border-gray-500 text-sm leading-relaxed">{task.mensaje}</p>
+                        ) : (
+                            <p className="m-0 p-3 rounded bg-blue-50 border-l-4 border-blue-500 text-sm leading-relaxed">
+                                {task.mensaje_cordial || task.mensaje}
+                            </p>
                         )}
                     </div>
 
@@ -65,7 +102,66 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
                                 placeholder="Escribe tu respuesta a esta tarea..."
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-base font-inherit resize-y focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                             />
+
+                            {!previewMode && (
+                                <button
+                                    type="button"
+                                    onClick={generateResponsePreview}
+                                    disabled={generatingPreview || !respuesta.trim()}
+                                    className="mt-3 px-4 py-2 bg-blue-500 text-white border-none rounded-md text-sm cursor-pointer transition-colors duration-300 hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {generatingPreview ? 'Generando previsualización...' : '🔍 Generar Previsualización'}
+                                </button>
+                            )}
                         </div>
+
+                        {previewMode && (
+                            <div className="mb-6 p-4 border border-gray-300 rounded-lg bg-gray-50">
+                                <h3 className="text-lg font-semibold mb-4 text-gray-800">Previsualización de tu Respuesta</h3>
+
+                                <div className="mb-4">
+                                    <h4 className="font-medium text-gray-700 mb-2">Respuesta Original:</h4>
+                                    <div className="p-3 bg-white border border-gray-200 rounded text-sm">
+                                        {respuesta}
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <h4 className="font-medium text-gray-700 mb-2">Respuesta Cordial (EmpatIA):</h4>
+                                    <div className="p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+                                        {cordialResponse || 'No se pudo generar la versión cordial'}
+                                    </div>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block mb-2 text-gray-600 font-medium">
+                                        ¿Qué versión de la respuesta quieres enviar?
+                                    </label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="original"
+                                                checked={selectedResponseType === 'original'}
+                                                onChange={(e) => setSelectedResponseType(e.target.value)}
+                                                className="mr-2"
+                                            />
+                                            Respuesta Original
+                                        </label>
+                                        <label className="flex items-center">
+                                            <input
+                                                type="radio"
+                                                value="cordial"
+                                                checked={selectedResponseType === 'cordial'}
+                                                onChange={(e) => setSelectedResponseType(e.target.value)}
+                                                className="mr-2"
+                                            />
+                                            Respuesta Cordial (Recomendado)
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="flex gap-4 justify-end mb-6">
                             <button
@@ -77,19 +173,21 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
                             </button>
                             <button
                                 type="submit"
-                                disabled={loading}
+                                disabled={loading || !previewMode}
                                 className="px-4 py-2 bg-indigo-500 text-white border-none rounded-md cursor-pointer transition-colors duration-300 hover:bg-indigo-600 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
-                                {loading ? 'Enviando...' : 'Enviar Respuesta'}
+                                {loading ? 'Enviando...' : previewMode ? `Enviar (${selectedResponseType === 'original' ? 'Original' : 'Cordial'})` : 'Generar previsualización primero'}
                             </button>
                         </div>
                     </form>
 
-                    <div className="mt-4 p-4 bg-blue-50 rounded border-l-4 border-blue-500">
-                        <p className="m-0 text-blue-700 text-sm">
-                            💡 Tu respuesta también será procesada por IA para generar una versión más cordial.
-                        </p>
-                    </div>
+                    {!previewMode && (
+                        <div className="mt-4 p-4 bg-blue-50 rounded border-l-4 border-blue-500">
+                            <p className="m-0 text-blue-700 text-sm">
+                                💡 Genera una previsualización para ver cómo EmpatIA puede mejorar tu respuesta.
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
