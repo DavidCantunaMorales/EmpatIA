@@ -80,28 +80,22 @@ const TaskList = ({ onTaskResponded }) => {
 
                             <div className="my-4">
                                 <div className="mb-4">
-                                    <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">Mensaje Original:</h4>
-                                    <p className="m-0 p-3 rounded bg-gray-50 border-l-4 border-gray-500 text-sm leading-relaxed">{task.mensaje}</p>
+                                    <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">
+                                        Mensaje {task.tipo_mensaje_seleccionado === 'original' ? 'Original' : 'Cordial'}:
+                                    </h4>
+                                    <p className="m-0 p-3 rounded bg-blue-50 border-l-4 border-blue-500 text-sm leading-relaxed">
+                                        {task.mensaje}
+                                    </p>
                                 </div>
-
-                                {task.mensaje_cordial && (
-                                    <div className="mb-4">
-                                        <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">Mensaje Cordial (IA):</h4>
-                                        <p className="m-0 p-3 rounded bg-blue-50 border-l-4 border-blue-500 text-sm leading-relaxed">{task.mensaje_cordial}</p>
-                                    </div>
-                                )}
 
                                 {task.respuesta && (
                                     <div className="mb-4">
-                                        <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">Respuesta:</h4>
-                                        <p className="m-0 p-3 rounded bg-green-50 border-l-4 border-green-500 text-sm leading-relaxed">{task.respuesta}</p>
-                                    </div>
-                                )}
-
-                                {task.respuesta_cordial && (
-                                    <div className="mb-4">
-                                        <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">Respuesta Cordial (IA):</h4>
-                                        <p className="m-0 p-3 rounded bg-orange-50 border-l-4 border-orange-500 text-sm leading-relaxed">{task.respuesta_cordial}</p>
+                                        <h4 className="m-0 mb-2 text-gray-800 text-sm font-semibold">
+                                            Respuesta {task.tipo_respuesta_seleccionada === 'original' ? 'Original' : 'Cordial'}:
+                                        </h4>
+                                        <p className="m-0 p-3 rounded bg-green-50 border-l-4 border-green-500 text-sm leading-relaxed">
+                                            {task.respuesta}
+                                        </p>
                                     </div>
                                 )}
                             </div>
