@@ -49,7 +49,7 @@ router.post('/preview-response', authMiddleware, roleMiddleware('miembro'), asyn
 });
 
 router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res) => {
-    const { nombre, asignado_a, mensaje, mensajeOriginal, tipoMensajeSeleccionado } = req.body;
+    const { nombre, asignado_a, mensaje, mensajeOriginal, mensajeCordial, tipoMensajeSeleccionado } = req.body;
 
     try {
         // Validar que el usuario asignado existe y es miembro
@@ -59,17 +59,13 @@ router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res)
             return res.status(400).json({ message: 'Usuario asignado no válido o no es miembro' });
         }
 
-        // Si no se especifica el tipo, determinar automáticamente
-        let selectedType = tipoMensajeSeleccionado;
+        let selectedType = tipoMensajeSeleccionado || 'original';
         let originalMessage = mensajeOriginal || mensaje;
-        let cordialMessage = mensaje;
+        let cordialMessage = mensajeCordial;
 
-        // Si no hay mensaje original separado, generar la versión cordial
-        if (!mensajeOriginal) {
-            cordialMessage = await processMessage(mensaje);
-            selectedType = selectedType || 'original'; // Por defecto original si no se especifica
-        } else {
-            selectedType = selectedType || 'cordial'; // Por defecto cordial si viene de previsualización
+        // Solo procesar con IA si NO viene de una previsualización
+        if (!mensajeCordial) {
+            cordialMessage = await processMessage(originalMessage);
         }
 
         const query = `INSERT INTO tareas (nombre, asignado_a, mensaje, mensaje_cordial, mensaje_original, tipo_mensaje_seleccionado, creado_por)
@@ -92,7 +88,7 @@ router.post('/assign', authMiddleware, roleMiddleware('lider'), async (req, res)
 
 router.post('/respond/:taskId', authMiddleware, roleMiddleware('miembro'), async (req, res) => {
     const { taskId } = req.params;
-    const { respuesta, respuestaOriginal, tipoRespuestaSeleccionada } = req.body;
+    const { respuesta, respuestaOriginal, respuestaCordial, tipoRespuestaSeleccionada } = req.body;
     try {
         // Primero obtenemos la tarea original para tener el contexto del mensaje de asignación
         const taskQuery = 'SELECT mensaje, mensaje_cordial FROM tareas WHERE id = $1 AND asignado_a = $2';
@@ -103,21 +99,16 @@ router.post('/respond/:taskId', authMiddleware, roleMiddleware('miembro'), async
         }
 
         const originalTask = taskResult.rows[0];
-
-        // Si no se especifica el tipo, determinar automáticamente
-        let selectedType = tipoRespuestaSeleccionada;
+        let selectedType = tipoRespuestaSeleccionada || 'original';
         let originalResponse = respuestaOriginal || respuesta;
-        let cordialResponse = respuesta;
+        let cordialResponse = respuestaCordial;
 
-        // Si no hay respuesta original separada, generar la versión cordial
-        if (!respuestaOriginal) {
+        // Solo procesar con IA si NO viene de una previsualización
+        if (!respuestaCordial) {
             const context = {
                 mensaje_original: originalTask.mensaje_cordial || originalTask.mensaje
             };
-            cordialResponse = await processMessage(respuesta, context);
-            selectedType = selectedType || 'original'; // Por defecto original si no se especifica
-        } else {
-            selectedType = selectedType || 'cordial'; // Por defecto cordial si viene de previsualización
+            cordialResponse = await processMessage(originalResponse, context);
         }
 
         const query = `UPDATE tareas

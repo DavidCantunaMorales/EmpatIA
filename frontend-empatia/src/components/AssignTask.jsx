@@ -16,6 +16,7 @@ const AssignTask = ({ onTaskAssigned }) => {
     const [cordialMessage, setCordialMessage] = useState('');
     const [selectedMessageType, setSelectedMessageType] = useState('cordial');
     const [generatingPreview, setGeneratingPreview] = useState(false);
+    const [lastPreviewedMessage, setLastPreviewedMessage] = useState('');
 
     useEffect(() => {
         fetchMembers();
@@ -35,10 +36,18 @@ const AssignTask = ({ onTaskAssigned }) => {
     };
 
     const handleChange = (e) => {
+        const { name, value } = e.target;
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            [name]: value
         });
+
+        // Si se modificó el mensaje y ya había una previsualización, resetear el modo previsualización
+        if (name === 'mensaje' && previewMode && value !== lastPreviewedMessage) {
+            setPreviewMode(false);
+            setCordialMessage('');
+            setSelectedMessageType('cordial');
+        }
     };
 
     const generatePreview = async () => {
@@ -54,6 +63,7 @@ const AssignTask = ({ onTaskAssigned }) => {
             // Crear un endpoint temporal para obtener la previsualización
             const response = await api.post('/tasks/preview', { mensaje: formData.mensaje });
             setCordialMessage(response.data.cordialMessage);
+            setLastPreviewedMessage(formData.mensaje); // Guardar el mensaje que se previsualizó
             setPreviewMode(true);
         } catch (err) {
             setError('Error al generar la previsualización');
@@ -70,11 +80,12 @@ const AssignTask = ({ onTaskAssigned }) => {
         setSuccess('');
 
         try {
-            // Preparar los datos con el mensaje seleccionado
+            // Preparar los datos con el mensaje seleccionado y las respuestas generadas
             const dataToSubmit = {
                 ...formData,
                 mensaje: selectedMessageType === 'original' ? formData.mensaje : cordialMessage || formData.mensaje,
-                mensajeOriginal: formData.mensaje, // Enviar también el mensaje original
+                mensajeOriginal: formData.mensaje, // Enviar mensaje original
+                mensajeCordial: cordialMessage, // Enviar mensaje cordial generado en previsualización
                 tipoMensajeSeleccionado: selectedMessageType
             };
 
@@ -84,6 +95,7 @@ const AssignTask = ({ onTaskAssigned }) => {
             setPreviewMode(false);
             setCordialMessage('');
             setSelectedMessageType('cordial');
+            setLastPreviewedMessage(''); // Limpiar también el mensaje previsualizad
 
             if (onTaskAssigned) {
                 onTaskAssigned();
@@ -185,6 +197,17 @@ const AssignTask = ({ onTaskAssigned }) => {
                             className="mt-3 px-4 py-2 bg-blue-500 text-white border-none rounded-md text-sm cursor-pointer transition-colors duration-300 hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             {generatingPreview ? 'Generando previsualización...' : '🔍 Generar Previsualización'}
+                        </button>
+                    )}
+
+                    {previewMode && formData.mensaje !== lastPreviewedMessage && (
+                        <button
+                            type="button"
+                            onClick={generatePreview}
+                            disabled={generatingPreview || !formData.mensaje.trim()}
+                            className="mt-3 px-4 py-2 bg-orange-500 text-white border-none rounded-md text-sm cursor-pointer transition-colors duration-300 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {generatingPreview ? 'Regenerando previsualización...' : '🔄 Regenerar Previsualización'}
                         </button>
                     )}
                 </div>

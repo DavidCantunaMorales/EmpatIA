@@ -11,6 +11,7 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
     const [selectedResponseType, setSelectedResponseType] = useState('cordial');
     const [generatingPreview, setGeneratingPreview] = useState(false);
     const [showOriginalTask, _] = useState(false);
+    const [lastPreviewedResponse, setLastPreviewedResponse] = useState('');
 
     const generateResponsePreview = async () => {
         if (!respuesta.trim()) {
@@ -27,6 +28,7 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
                 taskId: task.id
             });
             setCordialResponse(response.data.cordialResponse);
+            setLastPreviewedResponse(respuesta); // Guardar la respuesta que se previsualizó
             setPreviewMode(true);
         } catch (err) {
             setError('Error al generar la previsualización');
@@ -46,6 +48,7 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
             await tasksAPI.respondTask(task.id, {
                 respuesta: responseToSubmit,
                 respuestaOriginal: respuesta,
+                respuestaCordial: cordialResponse, // Enviar respuesta cordial generada en previsualización
                 tipoRespuestaSeleccionada: selectedResponseType
             });
             onSubmit();
@@ -96,7 +99,15 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
                             <textarea
                                 id="respuesta"
                                 value={respuesta}
-                                onChange={(e) => setRespuesta(e.target.value)}
+                                onChange={(e) => {
+                                    setRespuesta(e.target.value);
+                                    // Si se modificó la respuesta y ya había una previsualización, resetear el modo previsualización
+                                    if (previewMode && e.target.value !== lastPreviewedResponse) {
+                                        setPreviewMode(false);
+                                        setCordialResponse('');
+                                        setSelectedResponseType('cordial');
+                                    }
+                                }}
                                 required
                                 rows="4"
                                 placeholder="Escribe tu respuesta a esta tarea..."
@@ -111,6 +122,17 @@ const TaskResponseModal = ({ task, onClose, onSubmit }) => {
                                     className="mt-3 px-4 py-2 bg-blue-500 text-white border-none rounded-md text-sm cursor-pointer transition-colors duration-300 hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
                                     {generatingPreview ? 'Generando previsualización...' : '🔍 Generar Previsualización'}
+                                </button>
+                            )}
+
+                            {previewMode && respuesta !== lastPreviewedResponse && (
+                                <button
+                                    type="button"
+                                    onClick={generateResponsePreview}
+                                    disabled={generatingPreview || !respuesta.trim()}
+                                    className="mt-3 px-4 py-2 bg-orange-500 text-white border-none rounded-md text-sm cursor-pointer transition-colors duration-300 hover:bg-orange-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {generatingPreview ? 'Regenerando previsualización...' : '🔄 Regenerar Previsualización'}
                                 </button>
                             )}
                         </div>
